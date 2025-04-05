@@ -1,0 +1,530 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  State createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+
+  User? user = FirebaseAuth.instance.currentUser;
+
+  String email = FirebaseAuth.instance.currentUser!.email!.toString();
+  String username = '';
+  String age = '';
+  String weight = '';
+  String height = '';
+
+  @override
+  void initState() {
+    super.initState();
+    getUserDataByEmail(email);
+  }
+
+  void signOut() {
+    FirebaseAuth.instance.signOut();
+  }
+
+  Future<void> getUserDataByEmail(String email) async {
+    try {
+
+      // Query the "users" collection for a document where the 'email' field matches
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('userdata')
+          .where('email', isEqualTo: email)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // Get the first matching document
+        DocumentSnapshot userDoc = querySnapshot.docs.first;
+
+        //extract and assign data values
+        setState(() {
+          username = userDoc['name'];
+          height = userDoc['height']?.toString() ?? '';
+          weight = userDoc['weight']?.toString() ?? '';
+          age = userDoc['age']?.toString() ?? '';
+        });
+
+      } else {
+        // Handle the case when no user document was found for the given email
+        //print('No user found with the email: $email');
+      }
+    } catch (e) {
+      // Handle any errors that occur during the query
+      //print('Error fetching user data: $e');
+    }
+  }
+
+  Future<void> updateUserData(String newUsername,
+      String newAge,
+      String newWeight,
+      String newHeight) async {
+
+    QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+        .collection('userdata')
+        .where('email', isEqualTo: email)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      // Get the first matching document
+      DocumentSnapshot userDoc = querySnapshot.docs.first;
+
+      await userDoc.reference.update({
+        'name': newUsername,
+        'age': newAge,
+        'weight': newWeight,
+        'height': newHeight,
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A1A),
+      body: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF41318D),
+              Colors.black,
+            ],
+            stops: const [0.29, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Logout button now integrated into main layout
+              Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      _showLogoutConfirmation();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.logout, color: Colors.white, size: 24),
+                          SizedBox(width: 8),
+                          Text(
+                            " ",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Main content area now in a single scrollable container
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 30),
+                      // Profile picture
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          size: 80,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Username
+                      Text(
+                        username,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Edit Profile Button
+                      InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              transitionDuration: const Duration(milliseconds: 1000),
+                              pageBuilder: (context, animation, secondaryAnimation) =>
+                                  EditProfileScreen(
+                                    initialUsername: username,
+                                    initialAge: age,
+                                    initialWeight: weight,
+                                    initialHeight: height,
+                                    onProfileUpdated: (newUsername, newAge, newWeight, newHeight) {
+                                      setState(() {
+                                        username = newUsername;
+                                        age = newAge;
+                                        weight = newWeight;
+                                        height = newHeight;
+                                        updateUserData(newUsername, newAge, newWeight, newHeight);
+                                      });
+                                    },
+                                  ),
+                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                const begin = Offset(0, 1);
+                                const end = Offset.zero;
+                                final tween = Tween(begin: begin, end: end)
+                                    .chain(CurveTween(curve: Curves.ease));
+                                final offsetAnimation = animation.drive(tween);
+                                return SlideTransition(
+                                  position: offsetAnimation,
+                                  child: child,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[700],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Text(
+                            'Edit Profile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      // Age Info
+                      _buildInfoCard('Age', age),
+                      const SizedBox(height: 16),
+                      // Weight Info
+                      _buildInfoCard('Weight', weight),
+                      const SizedBox(height: 16),
+                      // Height Info
+                      _buildInfoCard('Height', height),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm Logout"),
+        content: const Text("Are you sure you want to log out?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Logout button pressed.'),
+                ),
+              );
+              signOut();
+            },
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String title, String value) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF303F9F),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Center(
+        child: Text(
+          '$title: $value',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+}
+
+class EditProfileScreen extends StatefulWidget {
+  final String initialUsername;
+  final String initialAge;
+  final String initialWeight;
+  final String initialHeight;
+  final Function(String, String, String, String) onProfileUpdated;
+
+  const EditProfileScreen({
+    super.key,
+    required this.initialUsername,
+    required this.initialAge,
+    required this.initialWeight,
+    required this.initialHeight,
+    required this.onProfileUpdated,
+  });
+
+  @override
+  State createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  late TextEditingController _usernameController;
+  late TextEditingController _ageController;
+  late TextEditingController _weightController;
+  late TextEditingController _heightController;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.initialUsername);
+    _ageController = TextEditingController(text: widget.initialAge);
+    _weightController = TextEditingController(text: widget.initialWeight);
+    _heightController = TextEditingController(text: widget.initialHeight);
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
+    _heightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A237E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF41318D),
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: IconButton(
+          icon: const Icon(
+            Icons.expand_more, // down-facing chevron
+            color: Colors.white,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF41318D),
+              Colors.black,
+            ],
+            stops: const [0.29, 1.0],
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              // Profile picture with camera icon
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person,
+                      size: 80,
+                      color: Colors.black,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Adding a photo is not implemented.")),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF9C27B0),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  )
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Username
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[700],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _usernameController.text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              // Age Input
+              _buildEditableInfoCard('Age', _ageController),
+              const SizedBox(height: 16),
+              // Weight Input
+              _buildEditableInfoCard('Weight', _weightController),
+              const SizedBox(height: 16),
+              // Height Input
+              _buildEditableInfoCard('Height', _heightController),
+              const SizedBox(height: 40),
+              // Save Button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onProfileUpdated(
+                      _usernameController.text,
+                      _ageController.text,
+                      _weightController.text,
+                      _heightController.text,
+                    );
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Save changes and Quit',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Cancel Button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Quit without Saving',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditableInfoCard(String title, TextEditingController controller) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF303F9F), // Slightly lighter purple
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: title,
+          labelStyle: const TextStyle(color: Colors.white70),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+    );
+  }
+}

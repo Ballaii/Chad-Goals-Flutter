@@ -1,0 +1,327 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _showHistoryOverlay = false;
+  final User? user = FirebaseAuth.instance.currentUser;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Main Content Area
+          Column(
+            children: [
+              //greet user
+              AppBar(
+                backgroundColor: Colors.deepPurple.shade800,
+                elevation: 5,
+                automaticallyImplyLeading: false,
+                centerTitle: true,
+                titleTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                title: Text(
+                  'Hi, ${user!.email!.split('@')[0]}!',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+              ),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFF41318D),
+                        Colors.black,
+                      ],
+                      stops: [0.29, 1.0],
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        backgroundImage: Image.asset('assets/192.png').image,
+                        radius: 50,
+                        backgroundColor: Colors.transparent,
+                      ),
+                      const SizedBox(height: 100),
+                      Center(
+                        child: WeeklyVolumeScoreCard(),
+
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // History Overlay
+          if (_showHistoryOverlay)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.85,
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A237E),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.blue,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Header with close button
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Past Workouts',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _showHistoryOverlay = false;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(child: HistoryList()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // History Button (Positioned at bottom center)
+          Positioned(
+            bottom: 20,
+            left: MediaQuery.of(context).size.width / 2 - 75,
+            child: ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _showHistoryOverlay = true;
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF9C27B0),
+                minimumSize: const Size(150, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              child: const Text(
+                'History',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+/// This widget calculates and displays the total weekly volume score using a flame emoji.
+class WeeklyVolumeScoreCard extends StatelessWidget {
+  WeeklyVolumeScoreCard({super.key});
+
+  final User? user = FirebaseAuth.instance.currentUser;
+
+  @override
+  Widget build(BuildContext context) {
+    if (user == null) {
+      return const Text('No user logged in', style: TextStyle(color: Colors.white));
+    }
+
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('workouts')
+          .where('email', isEqualTo: user!.email)
+          //.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        if (!snapshot.hasData) {
+          return const Text(
+            'No workouts this week',
+            style: TextStyle(color: Colors.white, fontSize: 18),
+          );
+        }
+
+        double weeklyVolume = 0.0;
+        for (var doc in snapshot.data!.docs) {
+          final volumeStr = doc.get('volume_score');
+          double volume = double.tryParse(volumeStr) ?? 0.0;
+          weeklyVolume += volume;
+        }
+
+        return Card(
+          color: const Color(0xFF303F9F),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  '🔥',
+                  style: TextStyle(fontSize: 32),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'Total Volume Score:\n${weeklyVolume.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class HistoryList extends StatelessWidget {
+  HistoryList({super.key});
+
+  final User? user = FirebaseAuth.instance.currentUser;
+
+  String formatTimestamp(Timestamp timestamp) {
+    DateTime date = timestamp.toDate();
+    return DateFormat.yMMMd().format(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (user == null) {
+      return const Center(child: Text('No user logged in', style: TextStyle(color: Colors.white)));
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('workouts')
+          .where('email', isEqualTo: user!.email)
+          //.orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: Text('No workout history', style: TextStyle(color: Colors.white)));
+        }
+
+        final workoutDocs = snapshot.data!.docs;
+        return ListView.builder(
+          itemCount: workoutDocs.length,
+          itemBuilder: (context, index) {
+            var doc = workoutDocs[index];
+            Timestamp timestamp = doc.get('timestamp');
+            String date = formatTimestamp(timestamp);
+            String volume = doc.get('volume_score');
+            String exercises = doc.get('exercises');
+            String time = doc.get('time');
+
+            return ExpansionTile(
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    date,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  Row(
+                    children: [
+                      const Text('🔥', style: TextStyle(fontSize: 16)),
+                      const SizedBox(width: 4),
+                      Text(
+                        volume,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Time: $time', style: const TextStyle(color: Colors.white)),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Exercises:',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(exercises, style: const TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
